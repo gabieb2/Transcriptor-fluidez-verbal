@@ -8,7 +8,7 @@ python_version: "3.10"
 sdk_version: "3.38.0"
 suggested_hardware: "t4-small"
 suggested_storage: "small"
-app_file: "app.py"
+app_file: "TFV/SCR/app.py"
 short_description: "Una app para transcripción de audio con timestamps usando modelos Whisper."
 tags:
   - speech-recognition
