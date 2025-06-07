@@ -7,3 +7,4 @@ venv/
 # Ignorar archivos de Python compilados
 __pycache__/
 *.pyc
+TFV/.gradio/
