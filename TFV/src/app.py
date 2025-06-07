@@ -34,13 +34,14 @@ def procesar_audio(audio_file,):
     output_timestamps = "Timestamps por palabra:\n"
     
     for segment in segments:
-        output_text += segment.text + " "
-        for word_info in segment.words:
-            start = word_info.start
-            end = word_info.end
-            word = word_info.word
-            output_timestamps += f"[{start:.2f}s - {end:.2f}s]: {word}\n"
-    
+     output_text += segment.text + " "
+     for word_info in segment.words:
+        # Ajuste: sumamos segment.start
+        start = segment.start + word_info.start
+        end = segment.start + word_info.end
+        word = word_info.word
+        output_timestamps += f"[{start:.2f}s - {end:.2f}s]: {word}\n"
+
     return output_text.strip() + "\n\n" + output_timestamps
 
      
@@ -50,7 +51,9 @@ iface = gr.Interface(
     inputs=gr.Audio(type="filepath", label="Subí tu archivo de audio o grabá con el micrófono"),
     outputs="text",
     title="Procesador de Audio",
-    submit_btn="Transcribir Audio"
+    submit_btn="Transcribir Audio",
+    clear_btn="Limpiar"
+
 )
 
 iface.launch()
