@@ -9,14 +9,14 @@ sdk_version: "3.38.0"
 suggested_hardware: "t4-small"
 suggested_storage: "small"
 app_file: "TFV/SCR/app.py"
-short_description: "Una app para transcripción de audio con timestamps usando modelos Whisper."
+short_description: "Una app para transcripción de audio con timestamps "
 tags:
   - speech-recognition
   - transcription
   - whisper
   - gradio
 ---
-
+#
 # Transcriptor de Fluidez Verbal
 
 Esta aplicación utiliza Gradio y modelos Whisper para transcribir audio con timestamps.
