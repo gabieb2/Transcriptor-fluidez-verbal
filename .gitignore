@@ -1,3 +1,9 @@
 TFV/venv/
 venv/
 /venv
+# Ignorar carpeta de entorno virtual
+venv/
+
+# Ignorar archivos de Python compilados
+__pycache__/
+*.pyc
