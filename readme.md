@@ -20,7 +20,7 @@ tags:
 # Transcriptor de Fluidez Verbal
 
 Esta aplicación utiliza Gradio y modelos Whisper para transcribir audio con timestamps.
-
+##
 ---
 
 ## Cómo usar
