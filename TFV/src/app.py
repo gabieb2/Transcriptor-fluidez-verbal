@@ -1,19 +1,11 @@
 import torch
 import gradio as gr
 from faster_whisper import WhisperModel
-from transformers import pipeline
-from transformers.pipelines.audio_utils import ffmpeg_read
-
+import pandas as pd
 import tempfile
-import os
-
 
 model_size = "large-v2"
-BATCH_SIZE = 8
-FILE_LIMIT_MB = 1000
-
 model = WhisperModel(model_size, device="cuda" if torch.cuda.is_available() else "cpu")
-
 
 def procesar_audio(audio_file):
     if audio_file is None:
@@ -25,7 +17,7 @@ def procesar_audio(audio_file):
     output_timestamps = "Timestamps por palabra:\n"
 
     word_timings = []
-    words_data = []   # ✅ Declaramos la lista acá
+    words_data = []
 
     for segment in segments:
         output_text += segment.text + " "
@@ -33,51 +25,51 @@ def procesar_audio(audio_file):
             start = word_info.start
             end = word_info.end
             word = word_info.word
+            duration = round(end - start, 2)
 
-            # Para el JSON
             word_timings.append({
                 "word": word,
                 "start": start,
                 "end": end,
-                "duration": end - start
+                "duration": duration
             })
 
-            # Para el string de timestamps
             output_timestamps += f"[{start:.2f}s - {end:.2f}s]: {word}\n"
 
-            # ✅ Para la Dataframe
             words_data.append({
                 "Palabra": word,
-                "Inicio (s)": start,
-                "Fin (s)": end
+                "Inicio (s)": round(start, 2),
+                "Fin (s)": round(end, 2),
+                "Duración (s)": duration
             })
 
-    table_data = []
-    for wd in words_data:
-         table_data.append([wd["Palabra"], wd["Inicio (s)"], wd["Fin (s)"]])
+    # Crear DataFrame
+    df = pd.DataFrame(words_data)
 
-    # Retornamos todo: texto, json, dataframe
-    return output_text.strip() + "\n\n" + output_timestamps, word_timings, table_data
+    # Guardar CSV temporal para descarga
+    tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".csv")
+    df.to_csv(tmp_file.name, index=False)
 
+    # Retornamos texto, json, tabla (lista de listas) y archivo CSV
+    table_data = df.values.tolist()
+    return output_text.strip() + "\n\n" + output_timestamps, word_timings, table_data, tmp_file.name
 
 iface = gr.Interface(
-        fn=procesar_audio,
-        inputs=gr.Audio(type="filepath", label="Subí tu archivo de audio o grabá con el micrófono"),
-        outputs=[
-            gr.Textbox(label="Texto transcripto"),
-            gr.JSON(label="Tiempos de palabras (para análisis)"),
-            gr.Dataframe(
-            headers=["Palabra", "Inicio (s)", "Fin (s)"],
+    fn=procesar_audio,
+    inputs=gr.Audio(type="filepath", label="Subí tu archivo de audio o grabá con el micrófono"),
+    outputs=[
+        gr.Textbox(label="Texto transcripto"),
+        gr.JSON(label="Tiempos de palabras (para análisis)"),
+        gr.Dataframe(
+            headers=["Palabra", "Inicio (s)", "Fin (s)", "Duración (s)"],
             label="Tabla de tiempos de palabras",
-            interactive=True  # Esto es lo que hace que se pueda editar
-                        )
-        ],
-        title="Transcriptor de audio para análisis de fluidez verbal",
-        submit_btn="Transcribir Audio",
-        clear_btn="Limpiar"
-    )
-
+            interactive=True
+        ),
+        gr.File(label="Descargar CSV")
+    ],
+    title="Transcriptor de audio para análisis de fluidez verbal",
+    submit_btn="Transcribir Audio",
+    clear_btn="Limpiar"
+)
 
 iface.launch()
-
-
