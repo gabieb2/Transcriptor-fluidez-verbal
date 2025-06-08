@@ -14,33 +14,23 @@ FILE_LIMIT_MB = 1000
 
 model = WhisperModel(model_size, device="cuda" if torch.cuda.is_available() else "cpu")
 
-#Definimos parámetros del modelo 
-#pipe = pipeline(
-#    task="automatic-speech-recognition",
-#    chunk_length_s=30,
-#    device=device,
-#    return_timestamps=True
-#)
 
-
-
-def procesar_audio(audio_file,):
+def procesar_audio(audio_file):
     if audio_file is None:
         raise gr.Error("No audio file submitted! Please upload or record an audio file before submitting your request.")
-      
+    
     segments, info = model.transcribe(audio_file, beam_size=5, word_timestamps=True)
-# Construimos el texto completo y los timestamps por palabra
+
     output_text = ""
     output_timestamps = "Timestamps por palabra:\n"
-    
+
     for segment in segments:
-     output_text += segment.text + " "
-     for word_info in segment.words:
-        # Ajuste: sumamos segment.start
-        start = segment.start + word_info.start
-        end = segment.start + word_info.end
-        word = word_info.word
-        output_timestamps += f"[{start:.2f}s - {end:.2f}s]: {word}\n"
+        output_text += segment.text + " "
+        for word_info in segment.words:
+            start = word_info.start  # ya es tiempo absoluto
+            end = word_info.end
+            word = word_info.word
+            output_timestamps += f"[{start:.2f}s - {end:.2f}s]: {word}\n"
 
     return output_text.strip() + "\n\n" + output_timestamps
 
