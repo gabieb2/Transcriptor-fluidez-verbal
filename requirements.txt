@@ -1,4 +1,4 @@
 torch
-gradio
+gradio >=3.49
 faster-whisper
 transformers
