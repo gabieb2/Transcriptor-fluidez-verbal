@@ -34,13 +34,15 @@ def procesar_audio(audio_file):
 
     return output_text.strip() + "\n\n" + output_timestamps
 
+
+
      
 
 iface = gr.Interface(
     fn=procesar_audio,
     inputs=gr.Audio(type="filepath", label="Subí tu archivo de audio o grabá con el micrófono"),
     outputs="text",
-    title="Procesador de Audio",
+    title="Transcriptor de audio para análisis de fluidez verbal",
     submit_btn="Transcribir Audio",
     clear_btn="Limpiar"
 
