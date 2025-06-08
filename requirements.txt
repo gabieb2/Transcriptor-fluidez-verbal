@@ -1,4 +1,7 @@
 torch
 gradio >=4.49
+torch
+torchaudio
+pandas
+gradio
 faster-whisper
-transformers
