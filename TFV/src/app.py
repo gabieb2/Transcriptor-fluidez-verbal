@@ -24,83 +24,60 @@ def procesar_audio(audio_file):
     output_text = ""
     output_timestamps = "Timestamps por palabra:\n"
 
+    word_timings = []
+    words_data = []   # ✅ Declaramos la lista acá
+
     for segment in segments:
         output_text += segment.text + " "
         for word_info in segment.words:
-            start = word_info.start  # ya es tiempo absoluto
+            start = word_info.start
             end = word_info.end
             word = word_info.word
+
+            # Para el JSON
+            word_timings.append({
+                "word": word,
+                "start": start,
+                "end": end,
+                "duration": end - start
+            })
+
+            # Para el string de timestamps
             output_timestamps += f"[{start:.2f}s - {end:.2f}s]: {word}\n"
 
-    return output_text.strip() + "\n\n" + output_timestamps
+            # ✅ Para la Dataframe
+            words_data.append({
+                "Palabra": word,
+                "Inicio (s)": start,
+                "Fin (s)": end
+            })
 
+    table_data = []
+    for wd in words_data:
+         table_data.append([wd["Palabra"], wd["Inicio (s)"], wd["Fin (s)"]])
 
+    # Retornamos todo: texto, json, dataframe
+    return output_text.strip() + "\n\n" + output_timestamps, word_timings, table_data
 
-     
 
 iface = gr.Interface(
-    fn=procesar_audio,
-    inputs=gr.Audio(type="filepath", label="Subí tu archivo de audio o grabá con el micrófono"),
-    outputs="text",
-    title="Transcriptor de audio para análisis de fluidez verbal",
-    submit_btn="Transcribir Audio",
-    clear_btn="Limpiar"
+        fn=procesar_audio,
+        inputs=gr.Audio(type="filepath", label="Subí tu archivo de audio o grabá con el micrófono"),
+        outputs=[
+            gr.Textbox(label="Texto transcripto"),
+            gr.JSON(label="Tiempos de palabras (para análisis)"),
+            gr.Dataframe(
+            headers=["Palabra", "Inicio (s)", "Fin (s)"],
+            label="Tabla de tiempos de palabras",
+            interactive=True  # Esto es lo que hace que se pueda editar
+                        )
+        ],
+        title="Transcriptor de audio para análisis de fluidez verbal",
+        submit_btn="Transcribir Audio",
+        clear_btn="Limpiar"
+    )
 
-)
 
 iface.launch()
 
 
-
-#
-# def transcribe(inputs, task):
-#     if inputs is None:
-#         raise gr.Error("No audio file submitted! Please upload or record an audio file before submitting your request.")
-#
-#     text = pipe(inputs, batch_size=BATCH_SIZE, generate_kwargs={"task": task}, return_timestamps=True)["text"]
-#     return  text
-
-
-# demo = gr.Blocks()
-
-# mf_transcribe = gr.Interface(
-#     fn=transcribe,
-#     inputs=[
-#         gr.inputs.Audio(source="microphone", type="filepath", optional=True),
-#         gr.inputs.Radio(["transcribe", "translate"], label="Task", default="transcribe"),
-#     ],
-#     outputs="text",
-#     layout="horizontal",
-#     theme="huggingface",
-#     title="Whisper Large V3: Transcribe Audio",
-#     description=(
-#         "Transcribe long-form microphone or audio inputs with the click of a button! Demo uses the OpenAI Whisper"
-#         f" checkpoint [{MODEL_NAME}](https://huggingface.co/{MODEL_NAME}) and 🤗 Transformers to transcribe audio files"
-#         " of arbitrary length."
-#     ),
-#     allow_flagging="never",
-# )
-
-# file_transcribe = gr.Interface(
-#     fn=transcribe,
-#     inputs=[
-#         gr.inputs.Audio(source="upload", type="filepath", optional=True, label="Audio file"),
-#         gr.inputs.Radio(["transcribe", "translate"], label="Task", default="transcribe"),
-#     ],
-#     outputs="text",
-#     layout="horizontal",
-#     theme="huggingface",
-#     title="Whisper Large V3: Transcribe Audio",
-#     description=(
-#         "Transcribe long-form microphone or audio inputs with the click of a button! Demo uses the OpenAI Whisper"
-#         f" checkpoint [{MODEL_NAME}](https://huggingface.co/{MODEL_NAME}) and 🤗 Transformers to transcribe audio files"
-#         " of arbitrary length."
-#     ),
-#     allow_flagging="never",
-# )
-
-
-# with demo:
-#     gr.TabbedInterface([mf_transcribe, file_transcribe, yt_transcribe], ["Microphone", "Audio file", "YouTube"])
-
-# demo.launch(enable_queue=True)
