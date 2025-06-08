@@ -111,8 +111,7 @@ def calcular_estadisticas(tabla_data, tiempo_vad):
     detalle_repetidas = ", ".join(palabras_repetidas_detalle) if palabras_repetidas_detalle else "Ninguna"
 
     texto = (
-        f"Inicio de voz (VAD): {tiempo_vad:.2f} segundos\n"
-        f"Tiempo hasta la primera palabra: {tiempo_primera_palabra:.2f} segundos\n"
+        f"Latencia de primera palabra: {tiempo_vad:.2f} segundos\n"
         f"Cantidad total de palabras: {total_palabras}\n"
         f"Cantidad de palabras repetidas: {repetidas}\n"
         f"Palabras repetidas: {detalle_repetidas}"
