@@ -5,13 +5,14 @@ import pandas as pd
 import tempfile
 import torchaudio
 import torchaudio.transforms as T
-from collections import Counter
 import librosa
 import noisereduce as nr
 import soundfile as sf
+import matplotlib.pyplot as plt
+import numpy as np
+from collections import Counter  # <-- Importamos collections aquí
 
-
-#Importación de modelo whisper
+# Cargar modelos
 model_size = "large-v2"
 model = WhisperModel(model_size, device="cuda" if torch.cuda.is_available() else "cpu")
 
@@ -22,64 +23,95 @@ vad_model, utils = torch.hub.load(
 )
 (get_speech_timestamps, save_audio, read_audio, VADIterator, collect_chunks) = utils
 
-#Método para detectar latencia usando el modelo Silero VAD
-def detectar_inicio_voz_silero(audio_file):
-    wav, sample_rate = torchaudio.load(audio_file)
-
-    # Pasar a mono si tiene más de un canal
-    if wav.shape[0] > 1:
-        wav = torch.mean(wav, dim=0, keepdim=True)
-
-    # Remuestrear a 16000 Hz si es necesario
-    if sample_rate != 16000:
-        resampler = T.Resample(orig_freq=sample_rate, new_freq=16000)
-        wav = resampler(wav)
-        sample_rate = 16000
-
-    wav = wav.squeeze()
-    speech_timestamps = get_speech_timestamps(
-        wav,
-        vad_model,
-        sampling_rate=sample_rate,
-        threshold=0.3,
-        min_speech_duration_ms=50,
-        min_silence_duration_ms=50,
-        window_size_samples=512
-    )
-    if speech_timestamps:
-        return speech_timestamps[0]['start'] / sample_rate
-    else:
-        return 0.0
-    
-#Función para el filtrado de audio, eliminando ruidos de fondo
-
 def filtrar_audio(audio_file):
-    wav, sample_rate = librosa.load(audio_file, sr=None)
-
-    # Aplicar reducción de ruido
-    reducido = nr.reduce_noise(y=wav, sr=sample_rate)
-
-    # Guardar resultado
-    sf.write("limpio.wav", reducido, sample_rate)
-
+    wav, sr = librosa.load(audio_file, sr=None)
+    wav_denoised = nr.reduce_noise(y=wav, sr=sr)
+    sf.write("limpio.wav", wav_denoised, sr)
     return "limpio.wav"
 
+def detectar_inicio_voz_silero(audio_file):
+    wav, sr = torchaudio.load(audio_file)
+    if wav.shape[0] > 1:
+        wav = torch.mean(wav, dim=0, keepdim=True)
+    if sr != 16000:
+        wav = T.Resample(sr, 16000)(wav)
+        sr = 16000
+    wav = wav.squeeze()
+    speech_ts = get_speech_timestamps(
+        wav, vad_model, sampling_rate=sr,
+        threshold=0.3, min_speech_duration_ms=50,
+        min_silence_duration_ms=50, window_size_samples=512
+    )
+    return speech_ts, sr, wav.numpy()
 
-#Defino función pricipal para procesar el audio y transcribirlo
+# Transcripción completa
 def procesar_audio(audio_file):
     if audio_file is None:
-        raise gr.Error("No audio file submitted! Please upload or record an audio file before submitting your request.")
+        raise gr.Error("Subí un archivo primero.")
+    clean = filtrar_audio(audio_file)
+    segments, _ = model.transcribe(clean, beam_size=5, word_timestamps=True)
 
-    audio_file = filtrar_audio(audio_file)
-    inicio_voz = detectar_inicio_voz_silero(audio_file)
+    text = ""
+    table = []
+    for seg in segments:
+        text += seg.text + " "
+        for w in seg.words:
+            start = seg.start + w.start
+            end   = seg.start + w.end
+            table.append([w.word, round(start,2), round(end,2), round(end-start,2)])
 
-    # Generar salida vacía en texto y tabla, pero con la latencia
-    output_text = f"(Inicio de voz detectado por VAD: {inicio_voz:.2f}s)"
-    tabla_vacia = []
-    archivo_csv = None
+    return text.strip(), table
 
-    return output_text, tabla_vacia, archivo_csv, inicio_voz
+# Solo latencia + waveform plot + latencia texto
+def plot_vad(audio_file):
+    if audio_file is None:
+        raise gr.Error("Subí un archivo primero.")
+    clean = filtrar_audio(audio_file)
+    speech_ts, sr, wav = detectar_inicio_voz_silero(clean)
 
+    # Calcular latencia (inicio primera voz detectada)
+    if speech_ts:
+        latencia = speech_ts[0]['start'] / sr
+    else:
+        latencia = 0.0
+
+    # Generar figura
+    fig, ax = plt.subplots()
+    times = np.linspace(0, len(wav)/sr, num=len(wav))
+    ax.plot(times, wav)
+    for seg in speech_ts:
+        start = seg['start']/sr
+        end   = seg['end']/sr
+        ax.axvspan(start, end, alpha=0.3)  # sombrear segmento
+    ax.set_xlabel("Tiempo (s)")
+    ax.set_ylabel("Amplitud")
+    ax.set_title("Forma de onda + Segmentos de Voz Detectados")
+    return fig, f"Latencia detectada: {latencia:.2f} segundos"
+
+# Función para exportar CSV desde tabla editable, con nombre personalizado e incluir estadísticas
+def exportar_csv(tabla_data, nombre_archivo, estadisticas_texto):
+    import pandas as pd
+
+    if tabla_data is None or len(tabla_data) == 0:
+        return None
+    if not nombre_archivo or nombre_archivo.strip() == "":
+        nombre_archivo = "tabla_palabras"
+    if not nombre_archivo.endswith(".csv"):
+        nombre_archivo += ".csv"
+
+    df = pd.DataFrame(tabla_data, columns=["Palabra","Inicio (s)","Fin (s)","Duración (s)"]) if not isinstance(tabla_data, pd.DataFrame) else tabla_data
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".csv", prefix=nombre_archivo.replace(".csv","")+"_")
+
+    with open(tmp.name, 'w', encoding='utf-8') as f:
+        df.to_csv(f, index=False)
+        f.write("\n")  # línea en blanco
+        f.write("ESTADÍSTICAS\n")
+        for line in estadisticas_texto.split('\n'):
+            f.write(line + "\n")
+
+    return tmp.name
+
+# Función para calcular estadísticas a partir de la tabla editable y latencia
 def calcular_estadisticas(tabla_data, tiempo_vad):
     if tabla_data is None or len(tabla_data) == 0:
         return (
@@ -107,7 +139,6 @@ def calcular_estadisticas(tabla_data, tiempo_vad):
             "Palabras repetidas: Ninguna"
         )
 
-    
     total_palabras = len(df)
     conteo_palabras = Counter(df["Palabra"].str.lower())
     repetidas = sum(1 for c in conteo_palabras.values() if c > 1)
@@ -123,45 +154,61 @@ def calcular_estadisticas(tabla_data, tiempo_vad):
     return texto
 
 with gr.Blocks() as demo:
-    gr.Markdown("## Transcriptor de audio para análisis de fluidez verbal")
+    gr.Markdown("## Transcriptor y Analizador para evaluaciones congnitivas de Fluidez Verbal ")
+
+    audio_in = gr.Audio(type="filepath", label="Subí o grabá un audio")
 
     with gr.Row():
-        audio_input = gr.Audio(type="filepath", label="Subí tu archivo de audio o grabá con el micrófono")
+        btn_trans = gr.Button("Transcribir")
+        btn_vad   = gr.Button("Detectar Latencia")
 
-    transcribe_btn = gr.Button("Transcribir Audio")
-
-    trans_text = gr.Textbox(label="Texto transcripto")
-
-    tabla = gr.Dataframe(
-        headers=["Palabra", "Inicio (s)", "Fin (s)", "Duración (s)"],
-        label="Tabla de tiempos de palabras",
-        interactive=True
-    )
-
-    csv_output = gr.File(label="Descargar CSV")
-
-    clear_btn = gr.Button("Limpiar")
-
+    out_text   = gr.Textbox(label="Transcripción", interactive=False)
+    latencia_text = gr.Textbox(label="Latencia detectada", interactive=False)
     estadisticas = gr.Textbox(label="Estadísticas", interactive=False)
+
+    out_table  = gr.Dataframe(headers=["Palabra","Inicio (s)","Fin (s)","Duración (s)"], interactive=True)
+    out_plot   = gr.Plot()
+
+    gr.Markdown("### Exportar tabla modificada a CSV")
+    nombre_csv = gr.Textbox(label="Nombre del archivo CSV", placeholder="ejemplo.csv")
+    btn_export = gr.Button("Crear CSV")
+    out_csv    = gr.File(label="Descargar CSV")
 
     tiempo_vad_state = gr.State(0.0)
 
-    transcribe_btn.click(
-        fn=procesar_audio,
-        inputs=[audio_input],
-        outputs=[trans_text, tabla, csv_output, tiempo_vad_state]
-    )
+    btn_trans.click(fn=procesar_audio, inputs=[audio_in], 
+                    outputs=[out_text, out_table])
 
-    tabla.change(
-        fn=calcular_estadisticas,
-        inputs=[tabla, tiempo_vad_state],
+    btn_vad.click(fn=plot_vad, inputs=[audio_in], 
+                  outputs=[out_plot, latencia_text])
+
+    btn_export.click(fn=exportar_csv, 
+                     inputs=[out_table, nombre_csv, estadisticas], 
+                     outputs=[out_csv])
+
+    # Actualizar estadísticas al cambiar tabla o latencia
+    out_table.change(fn=calcular_estadisticas, inputs=[out_table, tiempo_vad_state], outputs=[estadisticas])
+
+    # Extraer latencia numérica del texto para usar en estadísticas
+    def guardar_latencia(texto_latencia):
+        try:
+            return float(texto_latencia.split(": ")[1].split()[0])
+        except:
+            return 0.0
+
+    latencia_text.change(fn=guardar_latencia, inputs=[latencia_text], outputs=[tiempo_vad_state])
+
+    # También actualizar estadísticas cuando cambia latencia
+    latencia_text.change(
+        fn=lambda x: calcular_estadisticas(out_table.value, guardar_latencia(x)),
+        inputs=[latencia_text],
         outputs=[estadisticas]
     )
 
-    clear_btn.click(
-        lambda: ("", [], None, 0.0, ""),
-        inputs=[],
-        outputs=[trans_text, tabla, csv_output, tiempo_vad_state, estadisticas]
+    gr.Button("Limpiar").click(
+        lambda: ("", [], None, None, "", None, 0.0), 
+        inputs=[], 
+        outputs=[out_text, out_table, out_csv, out_plot, nombre_csv, estadisticas, tiempo_vad_state]
     )
 
 demo.launch()
