@@ -6,7 +6,12 @@ import tempfile
 import torchaudio
 import torchaudio.transforms as T
 from collections import Counter
+import librosa
+import noisereduce as nr
+import soundfile as sf
 
+
+#Importación de modelo whisper
 model_size = "large-v2"
 model = WhisperModel(model_size, device="cuda" if torch.cuda.is_available() else "cpu")
 
@@ -17,6 +22,7 @@ vad_model, utils = torch.hub.load(
 )
 (get_speech_timestamps, save_audio, read_audio, VADIterator, collect_chunks) = utils
 
+#Método para detectar latencia usando el modelo Silero VAD
 def detectar_inicio_voz_silero(audio_file):
     wav, sample_rate = torchaudio.load(audio_file)
 
@@ -31,50 +37,48 @@ def detectar_inicio_voz_silero(audio_file):
         sample_rate = 16000
 
     wav = wav.squeeze()
-    speech_timestamps = get_speech_timestamps(wav, vad_model, sampling_rate=sample_rate)
+    speech_timestamps = get_speech_timestamps(
+        wav,
+        vad_model,
+        sampling_rate=sample_rate,
+        threshold=0.3,
+        min_speech_duration_ms=50,
+        min_silence_duration_ms=50,
+        window_size_samples=512
+    )
     if speech_timestamps:
         return speech_timestamps[0]['start'] / sample_rate
     else:
         return 0.0
+    
+#Función para el filtrado de audio, eliminando ruidos de fondo
 
+def filtrar_audio(audio_file):
+    wav, sample_rate = librosa.load(audio_file, sr=None)
+
+    # Aplicar reducción de ruido
+    reducido = nr.reduce_noise(y=wav, sr=sample_rate)
+
+    # Guardar resultado
+    sf.write("limpio.wav", reducido, sample_rate)
+
+    return "limpio.wav"
+
+
+#Defino función pricipal para procesar el audio y transcribirlo
 def procesar_audio(audio_file):
     if audio_file is None:
         raise gr.Error("No audio file submitted! Please upload or record an audio file before submitting your request.")
-    
+
+    audio_file = filtrar_audio(audio_file)
     inicio_voz = detectar_inicio_voz_silero(audio_file)
-    segments, info = model.transcribe(audio_file, beam_size=5, word_timestamps=True)
 
-    output_text = ""
-    output_timestamps = "Timestamps por palabra (globales):\n"
+    # Generar salida vacía en texto y tabla, pero con la latencia
+    output_text = f"(Inicio de voz detectado por VAD: {inicio_voz:.2f}s)"
+    tabla_vacia = []
+    archivo_csv = None
 
-    words_data = []
-
-    for segment in segments:
-        output_text += segment.text + " "
-        for word_info in segment.words:
-            absolute_start = segment.start + word_info.start
-            absolute_end = segment.start + word_info.end
-            duration = round(absolute_end - absolute_start, 2)
-
-            output_timestamps += f"[{absolute_start:.2f}s - {absolute_end:.2f}s]: {word_info.word}\n"
-
-            words_data.append({
-                "Palabra": word_info.word,
-                "Inicio (s)": round(absolute_start, 2),
-                "Fin (s)": round(absolute_end, 2),
-                "Duración (s)": duration
-            })
-
-    df = pd.DataFrame(words_data)
-
-    tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".csv")
-    df.to_csv(tmp_file.name, index=False)
-
-    table_data = df.values.tolist()
-    
-    output_text += f"\n\n(Inicio de voz detectado por VAD: {inicio_voz:.2f}s)"
-
-    return output_text.strip() + "\n\n" + output_timestamps, table_data, tmp_file.name, inicio_voz
+    return output_text, tabla_vacia, archivo_csv, inicio_voz
 
 def calcular_estadisticas(tabla_data, tiempo_vad):
     if tabla_data is None or len(tabla_data) == 0:
