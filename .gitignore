@@ -1,6 +1,7 @@
 TFV/venv/
 venv/
 /venv
+echo "*.wav" >> .gitignore
 
 
 # Ignorar archivos de Python compilados

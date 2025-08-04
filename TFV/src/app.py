@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from collections import Counter  # <-- Importamos collections aquí
 
-# Cargar modelos
+# Cargar modeloss
 model_size = "large-v2"
 model = WhisperModel(model_size, device="cuda" if torch.cuda.is_available() else "cpu")
 
