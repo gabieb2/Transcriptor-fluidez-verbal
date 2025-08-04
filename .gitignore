@@ -7,4 +7,4 @@ echo "*.wav" >> .gitignore
 # Ignorar archivos de Python compilados
 __pycache__/
 *.pyc
-TFV/.gradio/""
+TFV/.gradio/""*.wav
