@@ -9,7 +9,7 @@ sdk_version: "5.33.0"
 suggested_hardware: "t4-small"
 suggested_storage: "small"
 app_file: "TFV/src/app.py"
-short_description: "Una app para transcripción de audio con timestamps "
+short_description: "Aplicación basada en el modelo de transcripción de audio de Whisper adaptada para uso en el analisis de audio"
 tags:
   - speech-recognition
   - transcription
@@ -33,9 +33,15 @@ Esta aplicación utiliza Gradio y modelos Whisper para transcribir audio con tim
 
 ## Dependencias
 
-- gradio
-- transformers
 - torch
+- gradio
+- torchaudio
+- pandas
+- librosa
+- noicereduce
+- soundfile
+- faster-whisper
+
 
 ---
 

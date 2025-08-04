@@ -1,9 +1,10 @@
-torch
-gradio >=4.49
-torchaudio
-pandas
-gradio
-librosa
-noicereduce
-soundfile
+torch>=1.9.0
+gradio>=4.0.0
 faster-whisper
+pandas
+torchaudio
+librosa
+noisereduce
+soundfile
+matplotlib
+numpy
