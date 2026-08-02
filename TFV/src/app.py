@@ -1,3 +1,8 @@
+# Copyright (c) 2025 Gabriel Beinotti
+# Licencia: MIT License
+# Ver LICENSE.txt para más detalles
+
+
 import torch
 import gradio as gr
 from faster_whisper import WhisperModel
@@ -15,11 +20,13 @@ from collections import Counter  # <-- Importamos collections aquí
 # Cargar modeloss
 model_size = "large-v2"
 model = WhisperModel(model_size, device="cuda" if torch.cuda.is_available() else "cpu")
+# /app/TFV/src/app.py
 
 vad_model, utils = torch.hub.load(
-    repo_or_dir='snakers4/silero-vad',
+    repo_or_dir='snakers4/silero-vad',  # O el repo que esté escrito ahí
     model='silero_vad',
-    trust_repo=True
+    trust_repo=True,
+    skip_validation=True  # <--- AGREGÁ ESTA LÍNEA AQUÍ
 )
 (get_speech_timestamps, save_audio, read_audio, VADIterator, collect_chunks) = utils
 
@@ -154,7 +161,7 @@ def calcular_estadisticas(tabla_data, tiempo_vad):
     return texto
 
 with gr.Blocks() as demo:
-    gr.Markdown("## Transcriptor y Analizador para evaluaciones congnitivas de Fluidez Verbal ")
+    gr.Markdown("FONO LAB-IA: Transcriptor de Fluidez Verbal ")
 
     audio_in = gr.Audio(type="filepath", label="Subí o grabá un audio")
 
